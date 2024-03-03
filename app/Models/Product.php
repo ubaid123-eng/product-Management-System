@@ -27,4 +27,7 @@ class Product extends Authenticatable
     }
 
 
+    
+
+
 }

@@ -33,37 +33,22 @@ class productController extends Controller
   public function store(Request $request)
   {
     try {
-      $validator = Validator::make($request->all(), [
-        'name' => 'required|string|unique:' . TABLE_PRODUCTS . ',name',
-        'description' => 'required|String',
-        'price' => 'required|integer|min:1',
-        'stockquantity' => 'required|integer|min:1',
-      ]);
+      $validator = $this->validateRequest($request);
 
       if ($validator->fails()) {
         return response()->json(['errors' => $validator->errors()], 422);
       }
 
-      $product = new Product();
+      $this->createProduct($request);
 
-      $name = $request->name;
-      $name = str_replace(' ', '', $name);
-      $product->name = $name;
-
-      $product->description = $request->description;
-      $product->price = $request->price;
-      $product->stockquantity = $request->stockquantity;
-      $product->save();
-
-
-      return response()->json(['success' => 'product save succesfully.'], 200);
-
-
+      return response()->json(['success' => 'Product saved successfully.'], 200);
     } catch (\Exception $e) {
-      echo $e->getMessage();
       return response()->json(['error' => 'Something went wrong. Please try again.'], 500);
     }
   }
+
+
+
 
 
   public function edit($id)
@@ -82,50 +67,42 @@ class productController extends Controller
   public function update(Request $request, $id)
   {
     try {
+      $product = $this->findProduct($id);
 
-      $id = $request->id;
-      $product = Product::find($id);
       if (!$product) {
-        return response()->json(['error' => 'product does not exist'], 404);
+        return response()->json(['error' => 'Product does not exist'], 404);
       }
 
       $validator = Validator::make($request->all(), [
         'name' => 'required|string',
         'description' => 'required|String',
-        'price' => 'required|integer',
-        'stockquantity' => 'required|integer',
+        'price' => 'required|integer|min:1',
+        'stockquantity' => 'required|integer|min:1',
       ]);
 
       if ($validator->fails()) {
         return response()->json(['errors' => $validator->errors()], 422);
       }
 
+      $name = $this->sanitizeName($request->name);
 
-      $name = $request->name;
-      $name = str_replace(' ', '', $name);
-      if (Product::checkProductName($name, $id)) {
+      if ($this->checkProductName($name, $id)) {
         return response()->json([
           'success' => false,
-          'errors' => 'The new name already exists..'
+          'errors' => 'The new name already exists.'
         ], 400);
       }
 
-      $product->name = $name;
-      $product->description = $request->description;
-      $product->price = $request->price;
-      $product->stockquantity = $request->stockquantity;
-
-      $product->save();
-
-      return response()->json(['success' => 'product save succesfully.'], 200);
+      $this->updateProducts($product, $request);
+      return response()->json(['success' => 'Product updated successfully.'], 200);
 
     } catch (\Exception $e) {
-      echo $e->getMessage();
       return response()->json(['error' => 'Something went wrong. Please try again.'], 500);
     }
   }
 
 
+  // handle to soft delete the product
   public function destroy($id)
   {
     try {
@@ -147,6 +124,93 @@ class productController extends Controller
   }
 
 
+
+
+
+
+
+
+
+  // private functions
+
+
+  private function validateRequest(Request $request)
+  {
+    return Validator::make($request->all(), [
+      'name' => 'required|string|unique:' . TABLE_PRODUCTS . ',name',
+      'description' => 'required|string',
+      'price' => 'required|integer|min:1',
+      'stockquantity' => 'required|integer|min:1',
+    ]);
+  }
+
+
+
+  private function createProduct(Request $request)
+  {
+    $product = new Product();
+
+    $product->name = $this->sanitizeName($request->name);
+    $product->description = $request->description;
+    $product->price = $request->price;
+    $product->stockquantity = $request->stockquantity;
+    $product->save();
+
+    return $product;
+  }
+
+  // handle to remove spaces between product name so we can make it unique
+  private function sanitizeName($name)
+  {
+    return str_replace(' ', '', $name);
+  }
+
+
+
+  private function findProduct($id)
+  {
+    return Product::find($id);
+  }
+
+  // handle to check the product name while updating either it is already existing or not
+  private function checkProductName($name, $id)
+  {
+    return Product::checkProductName($name, $id);
+  }
+
+  private function updateProducts($product, Request $request)
+  {
+    $product->name = $this->sanitizeName($request->name);
+    $product->description = $request->description;
+    $product->price = $request->price;
+    $product->stockquantity = $request->stockquantity;
+
+    $product->save();
+
+    return $product;
+  }
+
+
+
+
+  private function validateupdateRequest(Request $request)
+  {
+    $errors = [];
+
+    if ($request->price <= 0 || $request->stockquantity <= 0) {
+      $errors[] = 'Price and stock quantity must be greater than 0.';
+    }
+
+    if (!empty($errors)) {
+      return [
+        'success' => false,
+        'errors' => $errors,
+        'status' => 400
+      ];
+    }
+
+    return ['success' => true];
+  }
 
 
 
@@ -177,31 +241,7 @@ class productController extends Controller
   public function storeProduct(Request $request)
   {
     try {
-      $validator = Validator::make($request->all(), [
-        'name' => 'required|string|unique:' . TABLE_PRODUCTS . ',name',
-        'description' => 'required|String',
-        'price' => 'required|integer',
-        'stockquantity' => 'required|integer',
-      ]);
-
-      if ($validator->fails()) {
-        return response()->json(['errors' => $validator->errors()], 422);
-      }
-
-      $product = new Product();
-
-      $name = $request->name;
-      $name = str_replace(' ', '', $name);
-      $product->name = $name;
-
-      $product->description = $request->description;
-      $product->price = $request->price;
-      $product->stockquantity = $request->stockquantity;
-      $product->save();
-
-      return response()->json(['success' => 'product save succesfully.'], 200);
-
-
+      return productController::store($request);
     } catch (\Exception $e) {
       echo $e->getMessage();
       return response()->json(['error' => 'Something went wrong. Please try again.'], 500);
@@ -215,8 +255,7 @@ class productController extends Controller
   {
     try {
 
-      $id = $request->id;
-      $product = Product::find($id);
+      $product = $this->findProduct($id);
       if (!$product) {
         return response()->json([
           'success' => false,
@@ -225,17 +264,19 @@ class productController extends Controller
       }
 
       if ($request->has('name')) {
-        $name = $request->name;
-        $name = str_replace(' ', '', $name);
-
-        // Check if the new name already exists in the database
-        if (Product::checkProductName($name, $id)) {
+        $name = $this->sanitizeName($request->name);
+        if ($this->checkProductName($name, $id)) {
           return response()->json([
             'success' => false,
-            'error' => 'The new name already exists. Please choose a different name.'
+            'errors' => 'The new name already exists.'
           ], 400);
         }
         $product->name = $name;
+      }
+
+      $validationResult = $this->validateupdateRequest($request);
+      if (!$validationResult['success']) {
+        return response()->json($validationResult, $validationResult['status']);
       }
 
       $product->fill($request->except('id', 'name'))->save();
@@ -248,22 +289,14 @@ class productController extends Controller
   }
 
 
-  // handle to delete the  product
-  public function deleteProduct($id)
+
+
+  // handle to soft delete the product
+  public function deleteProduct(Request $request, $id)
   {
     try {
-      $id = Product::where('id', $id)->update(['status' => 0]);
-      if ($id == 0) {
-        return response()->json([
-          'success' => false,
-          'error' => 'product does not exist'
-        ], 404);
-      }
-
-      return response()->json([
-        'success' => true,
-        "message" => "product deleted successfully"
-      ], 200);
+      $id = $request->id;
+      return productController::destroy($id);
 
     } catch (\Exception $e) {
       echo $e->getMessage();
